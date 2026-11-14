@@ -1,0 +1,14 @@
+# Python environment & cache
+venv/
+__pycache__/
+*.pyc
+
+# Local secrets & configuration
+.env
+
+# Local database & state
+nagi.db
+
+# IDE settings
+.vscode/
+.idea/

@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nagi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Local Marked.js script -->
+    <script src="./marked.min.js"></script>
+    <style>
+        :root {
+            /* --- Base Seed Colors --- */
+            --bg-base: #000000;
+            --accent-rgb: 244, 244, 245; /* #f4f4f5 - change this single RGB triplet to theme Nagi */
+
+            /* --- Derived Semantic Roles --- */
+            --bg-surface: rgba(var(--accent-rgb), 0.05);
+            --bg-hover: rgba(var(--accent-rgb), 0.10);
+            --border-subtle: rgba(var(--accent-rgb), 0.10);
+            --border-main: rgba(var(--accent-rgb), 0.18);
+            
+            --text-main: rgba(var(--accent-rgb), 0.95);
+            --text-muted: rgba(var(--accent-rgb), 0.50);
+            --text-faint: rgba(var(--accent-rgb), 0.25);
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            overflow-wrap: break-word;
+        }
+
+        /* --- Global Outline & Focus Ring Resets --- */
+        textarea, textarea:focus, textarea:active,
+        input, input:focus, input:active,
+        button, button:focus, button:active,
+        div:focus, div:active {
+            outline: none !important;
+            box-shadow: none !important;
+            -webkit-tap-highlight-color: transparent !important;
+        }
+
+        /* --- Semantic Utility Classes --- */
+        .bg-custom-dark { background-color: var(--bg-surface); }
+        .bg-app-dark { background-color: var(--bg-base); }
+        .text-theme-main { color: var(--text-main); }
+        .text-theme-muted { color: var(--text-muted); }
+        .text-theme-faint { color: var(--text-faint); }
+        .placeholder-theme::placeholder { color: var(--text-muted); }
+        .hover-theme-bg:hover { background-color: var(--bg-hover); }
+
+        textarea { resize: none !important; }
+
+        /* --- Typing Indicator Animation --- */
+        .typing-dots span { animation: typing-blink 1.4s infinite both; }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing-blink {
+            0%, 80%, 100% { opacity: 0.2; }
+            40% { opacity: 1; }
+        }
+
+        #chat-container { scrollbar-gutter: stable both-edges; }
+        #graph-canvas { touch-action: none; }
+
+        /* --- Hide Scrollbars Cleanly --- */
+        #home-sessions-list, #saved-searches-container, #theme-presets-list {
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE/Edge */
+        }
+        #home-sessions-list::-webkit-scrollbar,
+        #saved-searches-container::-webkit-scrollbar,
+        #theme-presets-list::-webkit-scrollbar {
+            display: none; /* Chrome/Safari/Opera */
+        }
+
+        /* --- Full Markdown Typography Styling Inside Assistant Bubbles --- */
+        .assistant-content p { margin-bottom: 0.75em; }
+        .assistant-content p:last-child { margin-bottom: 0; }
+        .assistant-content h1 { font-size: 1.5em; font-weight: 700; margin-top: 1em; margin-bottom: 0.5em; color: var(--text-main); }
+        .assistant-content h2 { font-size: 1.3em; font-weight: 650; margin-top: 0.9em; margin-bottom: 0.4em; color: var(--text-main); }
+        .assistant-content h3 { font-size: 1.15em; font-weight: 600; margin-top: 0.8em; margin-bottom: 0.3em; color: var(--text-main); }
+        .assistant-content ul, .assistant-content ol { list-style-position: inside; margin-bottom: 0.75em; padding-left: 1rem; }
+        .assistant-content ul { list-style-type: disc; }
+        .assistant-content ol { list-style-type: decimal; }
+        .assistant-content code { background-color: rgba(var(--accent-rgb), 0.1); padding: 0.2em 0.4em; border-radius: 4px; font-size: 0.9em; font-family: monospace; }
+        .assistant-content pre { position: relative; background-color: rgba(var(--accent-rgb), 0.08); padding: 0.75rem; padding-top: 2.25rem; border-radius: 6px; overflow-x: auto; margin-bottom: 0.75em; }
+        .assistant-content pre code { background-color: transparent; padding: 0; }
+        .assistant-content strong { font-weight: 600; color: var(--text-main); }
+        .assistant-content em { font-style: italic; }
+        .assistant-content blockquote { border-left: 3px solid rgba(var(--accent-rgb), 0.3); padding-left: 0.75rem; margin-left: 0; margin-bottom: 0.75em; color: var(--text-muted); }
+    </style>
+</head>
+<body class="bg-app-dark text-theme-main h-screen flex flex-col overflow-hidden relative">
+
+    <!-- ==================== Pill Context Edit Popover (Centered, Larger, Borderless) ==================== -->
+    <div id="context-popover" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs">
+        <div class="w-full max-w-lg bg-app-dark rounded-2xl p-6 shadow-2xl flex flex-col space-y-4 border-0">
+            <div class="flex items-center justify-between">
+                <div id="context-popover-title" class="text-sm font-semibold text-theme-main">Context</div>
+                <button id="context-close-btn" type="button" class="text-theme-muted hover:text-theme-main text-sm">✕</button>
+            </div>
+            <textarea id="context-textarea" placeholder="Write context specific to this saved search pill..." rows="12"
+                class="bg-custom-dark text-sm text-theme-main placeholder-theme p-3 rounded-xl resize-none border-0"></textarea>
+            <div class="flex justify-end">
+                <button id="context-save-btn" type="button" class="px-4 py-2 bg-custom-dark hover-theme-bg text-sm text-theme-main rounded-xl transition">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== Home View ==================== -->
+    <div id="home-view" class="flex-1 flex flex-col h-screen overflow-hidden w-full space-y-4 py-6 relative">
+        
+        <!-- Theme Customizer (Bottom Right of Home View) -->
+        <div class="absolute bottom-4 right-6 z-20">
+            <button id="theme-toggle-btn" class="flex items-center justify-center text-theme-muted hover:text-theme-main transition bg-transparent border-none p-1" title="Theme">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle>
+                    <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle>
+                    <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle>
+                    <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle>
+                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c0-1.5 1-2.5 2.5-2.5 1 0 2-.5 2-1.5v-1c0-1 1-2 2-2 3.5 0 5.5-2.5 5.5-5.5C24 6.5 18.5 2 12 2z"></path>
+                </svg>
+            </button>
+
+            <!-- Theme Popover Modal -->
+            <div id="theme-popover" class="hidden absolute bottom-10 right-0 w-72 bg-app-dark rounded-xl p-3 shadow-2xl z-30 flex flex-col space-y-3">
+                <div class="text-[13px] font-semibold text-theme-main">Theme</div>
+                
+                <div class="flex flex-col space-y-2">
+                    <div class="flex items-center justify-between text-[13px] text-theme-muted">
+                        <span>Background (Base)</span>
+                        <input id="theme-bg-input" type="color" value="#000000" class="w-7 h-5 bg-transparent rounded cursor-pointer border-0">
+                    </div>
+                    <div class="flex items-center justify-between text-[13px] text-theme-muted">
+                        <span>Accent & Text</span>
+                        <input id="theme-accent-input" type="color" value="#f4f4f5" class="w-7 h-5 bg-transparent rounded cursor-pointer border-0">
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <input id="theme-name-input" type="text" placeholder="Theme name..." class="flex-1 bg-app-dark text-[13px] text-theme-main placeholder-theme px-2.5 py-1.5 rounded-lg">
+                    <button id="theme-save-btn" type="button" class="px-3 py-1.5 bg-app-dark hover-theme-bg text-[13px] text-theme-main rounded-lg transition">Save</button>
+                </div>
+
+                <div class="flex flex-col space-y-1.5">
+                    <div class="text-[13px] font-medium text-theme-muted">Saved Themes</div>
+                    <div id="theme-presets-list" class="max-h-36 overflow-y-auto space-y-1">
+                        <!-- Dynamically populated themes -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graph Box -->
+        <div class="w-full h-[55vh] max-h-[500px] min-h-[280px] relative flex-shrink-0">
+            <div id="graph-container-box" class="absolute inset-0 w-full h-full overflow-hidden">
+                <canvas id="graph-canvas" class="absolute inset-0 w-full h-full"></canvas>
+                <div id="graph-empty" class="hidden absolute inset-0 flex items-center justify-center text-theme-muted pointer-events-none text-sm">No chats yet. Type below to start one.</div>
+            </div>
+        </div>
+
+        <!-- Centered Container for Input & Chat List -->
+        <div class="flex flex-col items-center w-full space-y-4 px-6 flex-1 min-h-0">
+            
+            <!-- Unified Search & New Chat Input Bar -->
+            <div class="max-w-xl w-full flex-shrink-0 relative">
+                <!-- @Tag Autocomplete Dropdown (Home) - Border Removed -->
+                <div id="home-tag-dropdown" class="hidden absolute bottom-full left-0 right-0 mb-2 bg-app-dark rounded-xl shadow-2xl max-h-48 overflow-y-auto z-50"></div>
+                
+                <form id="home-form" class="flex flex-col bg-custom-dark rounded-xl px-4 pt-3 pb-2 border border-transparent transition-colors focus-within:border-theme-main">
+                    <textarea id="home-input" placeholder="Search chats or press Enter to start a new one" rows="1" autocomplete="off"
+                        class="bg-transparent text-base leading-[26px] text-theme-main placeholder-theme overflow-y-auto max-h-32 resize-none border-none p-0"></textarea>
+                    <div class="flex items-center justify-between mt-1 select-none">
+                        <span class="text-xs text-theme-faint tracking-wide pointer-events-none">/ to type</span>
+                        <div class="flex items-center gap-3">
+                            <span id="chat-counter" class="text-xs text-theme-muted">0 chats</span>
+                            <button id="home-submit-btn" type="submit" title="Create New Chat (Enter)" class="text-theme-muted hover:text-theme-main transition flex items-center justify-center w-7 h-7">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                                    <polyline points="9 10 4 15 9 20" />
+                                    <path d="M20 4v7a4 4 0 0 1-4 4H4" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Saved Search Pills Roll -->
+            <div class="max-w-xl w-full flex-shrink-0">
+                <div id="saved-searches-container" class="flex items-center gap-1.5 overflow-x-auto py-1 scroll-smooth w-full px-1">
+                    <!-- Dynamically populated pills -->
+                </div>
+            </div>
+
+            <!-- Filtered Sessions List -->
+            <div id="home-sessions-list" class="max-w-xl w-full flex-1 overflow-y-auto space-y-1 pr-1 pb-4">
+                <!-- Dynamically populated session items -->
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==================== Chat View ==================== -->
+    <div id="chat-view" class="hidden flex-1 flex flex-col h-screen overflow-hidden relative">
+        <!-- Floating Top Header Bar -->
+        <div class="absolute top-4 left-6 right-6 z-10 flex items-center justify-between text-sm">
+            <button id="back-btn" class="flex items-center gap-2 text-theme-muted hover:text-theme-main transition max-w-md">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 flex-shrink-0">
+                    <path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd" />
+                </svg>
+                <span id="chat-title-text" class="truncate">Chat</span>
+            </button>
+            <div id="chat-header-menu-container" class="relative"></div>
+        </div>
+
+        <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-6 pt-14">
+            <div class="max-w-3xl w-full mx-auto">
+                <div class="text-theme-muted text-base leading-[26px] text-center mt-20">Select a session or type a message to start.</div>
+            </div>
+        </div>
+
+        <!-- Chat Input Area -->
+        <div class="px-6 pb-4 bg-app-dark">
+            <div class="max-w-3xl w-full mx-auto relative">
+                <!-- @Tag Autocomplete Dropdown (Chat) - Border Removed -->
+                <div id="chat-tag-dropdown" class="hidden absolute bottom-full left-0 right-0 mb-2 bg-app-dark rounded-xl shadow-2xl max-h-48 overflow-y-auto z-50"></div>
+
+                <form id="chat-form" class="flex flex-col bg-custom-dark rounded-xl px-4 pt-3 pb-2 border border-transparent transition-colors focus-within:border-theme-main">
+                    <textarea id="user-input" placeholder="Message your agent" rows="1" autocomplete="off"
+                        class="bg-transparent text-base leading-[26px] text-theme-main placeholder-theme overflow-y-auto max-h-56 resize-none border-none p-0"></textarea>
+                    <div class="flex items-center justify-between mt-1 select-none">
+                        <span class="text-xs text-theme-faint tracking-wide pointer-events-none">/ to type</span>
+                        <button id="chat-submit-btn" type="submit" title="Send (Enter)" class="text-theme-muted hover:text-theme-main transition flex items-center justify-center w-7 h-7">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                                <polyline points="9 10 4 15 9 20" />
+                                <path d="M20 4v7a4 4 0 0 1-4 4H4" />
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== Application Core Logic ==================== -->
+    <script type="module">
+        import { initGraph, loadGraph, setGraphActive, requestGraphFrame, getCameraState, setCameraState } from './graph.js';
+        import { sendChatMessage, retryChatMessage, saveSearchPill, fetchSavedSearches } from './api.js';
+        import { setupClientModule } from './client.js';
+        import { setupThemeModule } from './theme.js';
+
+        setupThemeModule();
+
+        const WRAPPER_CLASS = 'max-w-3xl w-full mx-auto';
+
+        // --- Action Icon SVGs ---
+        const ICONS = {
+            copy: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+            check: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><polyline points="20 6 9 17 4 12"/></svg>',
+            retry: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+            fork: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>'
+        };
+
+        // --- DOM Elements ---
+        const homeInput = document.getElementById('home-input');
+        const homeSubmitBtn = document.getElementById('home-submit-btn');
+        const input = document.getElementById('user-input');
+        const chatSubmitBtn = document.getElementById('chat-submit-btn');
+
+        const homeView = document.getElementById('home-view');
+        const chatView = document.getElementById('chat-view');
+        const homeForm = document.getElementById('home-form');
+        const homeSessionsList = document.getElementById('home-sessions-list');
+        const chatCounter = document.getElementById('chat-counter');
+        const savedSearchesContainer = document.getElementById('saved-searches-container');
+
+        const chatForm = document.getElementById('chat-form');
+        const container = document.getElementById('chat-container');
+        const backBtn = document.getElementById('back-btn');
+        const chatTitleText = document.getElementById('chat-title-text');
+
+        // --- Context Popover State & Elements ---
+        const contextPopover = document.getElementById('context-popover');
+        const contextCloseBtn = document.getElementById('context-close-btn');
+        const contextSaveBtn = document.getElementById('context-save-btn');
+        const contextTextarea = document.getElementById('context-textarea');
+        const contextPopoverTitle = document.getElementById('context-popover-title');
+
+        let activePillQuery = null;
+
+        contextCloseBtn.onclick = () => contextPopover.classList.add('hidden');
+        contextPopover.onclick = (e) => {
+            if (e.target === contextPopover) contextPopover.classList.add('hidden');
+        };
+        contextSaveBtn.onclick = async () => {
+            if (!activePillQuery) return;
+            try {
+                await saveSearchPill(activePillQuery, contextTextarea.value);
+                contextSaveBtn.textContent = 'Saved!';
+                setTimeout(() => { contextSaveBtn.textContent = 'Save'; }, 1500);
+                client.loadSavedSearches();
+            } catch (err) {
+                console.error("Failed to save context note", err);
+                contextSaveBtn.textContent = 'Error';
+            }
+        };
+
+        let isGraphActive = true;
+        let savedCameraState = null;
+
+        // --- View Switching Helpers ---
+        function showGraph() {
+            isGraphActive = true;
+            chatView.classList.add('hidden');
+            homeView.classList.remove('hidden');
+            setGraphActive(true);
+            if (savedCameraState) {
+                setCameraState(savedCameraState);
+            }
+            client.loadSessions(isGraphActive);
+            client.loadSavedSearches();
+        }
+
+        function showChat() {
+            savedCameraState = getCameraState();
+            isGraphActive = false;
+            setGraphActive(false);
+            homeView.classList.add('hidden');
+            chatView.classList.remove('hidden');
+        }
+
+        function emptyStateDiv(message) {
+            const wrapper = document.createElement('div');
+            wrapper.className = WRAPPER_CLASS;
+            wrapper.innerHTML = `<div class="text-theme-muted text-base leading-[26px] text-center mt-20">${message}</div>`;
+            return wrapper;
+        }
+
+        // --- Module Initialization ---
+        const client = setupClientModule({
+            container,
+            homeInput,
+            homeSessionsList,
+            chatCounter,
+            savedSearchesContainer,
+            chatTitleText,
+            chatHeaderMenuContainer: document.getElementById('chat-header-menu-container'),
+            emptyStateDiv,
+            showChat,
+            showGraph,
+            loadGraph,
+            requestGraphFrame,
+            WRAPPER_CLASS,
+            ICONS,
+            onOpenContext: (query, currentNote) => {
+                activePillQuery = query;
+                contextPopoverTitle.textContent = `Context: "${query}"`;
+                contextTextarea.value = currentNote || '';
+                contextPopover.classList.remove('hidden');
+            }
+        });
+
+        // Initialize @Tag Autocomplete on both inputs
+        client.setupTagAutocomplete(homeInput, document.getElementById('home-tag-dropdown'));
+        client.setupTagAutocomplete(input, document.getElementById('chat-tag-dropdown'));
+
+        // --- Input Locking & Stream Streaming Logic ---
+        function setInputLocked(locked) {
+            homeInput.disabled = locked;
+            homeSubmitBtn.disabled = locked;
+            input.disabled = locked;
+            chatSubmitBtn.disabled = locked;
+            if (locked) {
+                homeSubmitBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                chatSubmitBtn.classList.add('opacity-40', 'cursor-not-allowed');
+            } else {
+                homeSubmitBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                chatSubmitBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+            }
+        }
+
+        async function streamResponseInto(p, wrapper, fetchPromise) {
+            let awaitingFirstChunk = true;
+            setInputLocked(true);
+
+            const safetyTimeout = setTimeout(() => {
+                setInputLocked(false);
+            }, 60000);
+
+            let rawResponseText = '';
+
+            try {
+                const res = await fetchPromise;
+                if (!res.ok) {
+                    const errData = await res.text();
+                    throw new Error(errData || 'Server error');
+                }
+
+                const newId = res.headers.get('X-Message-Id');
+                if (newId && wrapper) wrapper.dataset.msgId = newId;
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    if (awaitingFirstChunk) {
+                        p.textContent = '';
+                        awaitingFirstChunk = false;
+                    }
+                    const chunk = decoder.decode(value, { stream: true });
+                    rawResponseText += chunk;
+                    p.textContent += chunk;
+                    container.scrollTop = container.scrollHeight;
+                }
+
+                p.innerHTML = marked.parse(rawResponseText);
+                client.attachCodeBlockCopyButtons(p);
+
+                if (document.hidden) document.title = 'Nagi (1)';
+                client.loadSessions(isGraphActive);
+            } catch (err) {
+                if (awaitingFirstChunk) p.textContent = '';
+                rawResponseText += ` [Error: ${err.message}]`;
+                p.textContent = rawResponseText;
+                if (document.hidden) document.title = 'Nagi (1)';
+            } finally {
+                clearTimeout(safetyTimeout);
+                setInputLocked(false);
+            }
+        }
+
+        // --- Global Event Listeners ---
+        window.addEventListener('focus', () => { document.title = 'Nagi'; });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !isGraphActive) {
+                e.preventDefault();
+                showGraph();
+                return;
+            }
+
+            if (e.key === '/') {
+                const activeEl = document.activeElement;
+                if (activeEl === homeInput || activeEl === input) return;
+
+                e.preventDefault();
+                if (isGraphActive) homeInput.focus();
+                else input.focus();
+            }
+        });
+
+        initGraph({
+            canvas: document.getElementById('graph-canvas'),
+            containerBox: document.getElementById('graph-container-box'),
+            emptyElement: document.getElementById('graph-empty'),
+            inputElement: homeInput,
+            onSelectSession: (id) => client.switchSession(id, isGraphActive, streamResponseInto)
+        });
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.session-menu').forEach(menu => menu.remove());
+        });
+
+        // --- Textarea Auto-Resizing & Keyboard Navigation ---
+        [homeInput, input].forEach(el => {
+            el.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = this.scrollHeight + 'px';
+            });
+        });
+
+        homeInput.addEventListener('keydown', function(e) {
+            const items = homeSessionsList.querySelectorAll('[data-session-id]');
+            
+            if (e.key === 'ArrowDown') {
+                if (items.length === 0) return;
+                e.preventDefault();
+                const idx = (client.getSelectedSessionIndex() + 1) % items.length;
+                client.setSelectedSessionIndex(idx);
+                client.updateSelectedSessionHighlight(items);
+                return;
+            }
+
+            if (e.key === 'ArrowUp') {
+                if (items.length === 0) return;
+                e.preventDefault();
+                const currentIdx = client.getSelectedSessionIndex();
+                const idx = currentIdx <= 0 ? items.length - 1 : currentIdx - 1;
+                client.setSelectedSessionIndex(idx);
+                client.updateSelectedSessionHighlight(items);
+                return;
+            }
+
+            if (e.key === 'Enter' && !e.shiftKey) {
+                const selIdx = client.getSelectedSessionIndex();
+                if (selIdx >= 0 && items[selIdx]) {
+                    e.preventDefault();
+                    client.switchSession(items[selIdx].dataset.sessionId, isGraphActive, streamResponseInto);
+                    return;
+                }
+                e.preventDefault();
+                homeForm.requestSubmit();
+            }
+        });
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.requestSubmit();
+            }
+        });
+
+        // --- Form Submission Handlers ---
+        homeForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = homeInput.value.trim();
+            if (!text) return;
+
+            const newSessionId = 'sess_' + Math.random().toString(36).substring(2, 15);
+            client.setCurrentSessionId(newSessionId);
+            const titlePreview = text.length > 30 ? text.substring(0, 30) : text;
+            
+            client.getCachedSessions().unshift({
+                id: newSessionId,
+                title: titlePreview,
+                is_pinned: 0,
+                created_at: new Date().toISOString()
+            });
+
+            homeInput.value = '';
+            homeInput.style.height = 'auto';
+            client.renderSessions();
+
+            showChat();
+            chatTitleText.textContent = titlePreview;
+            container.innerHTML = '';
+            
+            client.appendMessageDOM(null, text, 'user', { streamResponseInto });
+
+            const { wrapper: assistantWrapper, p: modelBubble } = client.appendMessageDOM(null, '', 'assistant', { streamResponseInto });
+            modelBubble.innerHTML = '<span class="typing-dots"><span>.</span><span>.</span><span>.</span></span>';
+
+            await streamResponseInto(modelBubble, assistantWrapper, sendChatMessage({
+                session_id: newSessionId,
+                message: text,
+                create_new: true
+            }));
+        });
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = input.value.trim();
+            const currentSessionId = client.getCurrentSessionId();
+            if (!text || !currentSessionId) return;
+
+            if (container.querySelector('.text-center')) {
+                container.innerHTML = '';
+            }
+
+            client.appendMessageDOM(null, text, 'user', { streamResponseInto });
+            input.value = '';
+            input.style.height = 'auto';
+
+            const { wrapper: assistantWrapper, p: modelBubble } = client.appendMessageDOM(null, '', 'assistant', { streamResponseInto });
+            modelBubble.innerHTML = '<span class="typing-dots"><span>.</span><span>.</span><span>.</span></span>';
+
+            await streamResponseInto(modelBubble, assistantWrapper, sendChatMessage({
+                session_id: currentSessionId,
+                message: text,
+                create_new: false
+            }));
+        });
+
+        homeInput.addEventListener('input', () => {
+            requestGraphFrame();
+            client.renderSessions();
+        });
+
+        backBtn.addEventListener('click', showGraph);
+
+        // --- Initial Boot ---
+        showGraph();
+    </script>
+</body>
+</html>
