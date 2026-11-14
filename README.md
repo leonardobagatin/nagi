@@ -4,7 +4,7 @@
     A self-hosted AI workspace exploring deterministic, associative memory.
   </p>
   <br />
-  <img width="650" alt="Nagi screenshot" src="https://github.com/user-attachments/assets/26e7af4a-8a37-4d51-a083-dbb080ff7956" />
+  <img width="650" alt="Nagi screenshot" src="https://github.com/user-attachments/assets/14805cfc-ae7f-4b23-99ea-b4ef94cf0dc7" />
 </div>
 
 <br />
